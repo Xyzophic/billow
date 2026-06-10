@@ -8,6 +8,7 @@ const DEFAULTS = {
   chime: true,
   pacer: 0, // 0 = off, otherwise target breaths per minute
   pacerVibe: false,
+  goal: 0, // 0 = off, otherwise "session avg under N bpm"
 };
 
 export const settings = loadSettings();

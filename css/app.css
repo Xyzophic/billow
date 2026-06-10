@@ -15,7 +15,27 @@
   --error: #b14a5e;
   --success: #176975;
   --serif: "Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif;
-  color-scheme: light;
+  color-scheme: light dark;
+}
+/* night companion — same paper-and-teal identity, follows the phone's dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171615;
+    --raised: #1e1d1c;
+    --line: #2a2926;
+    --line-soft: #343230;
+    --ink: #e8e6df;
+    --muted: #8b8d86;
+    --faint: #5f615b;
+    --accent: #2a98a5;
+    --accent-deep: #6fbfc9;
+    --accent-wash: #2a98a52b;
+    --ring-outer: #1c2627;
+    --ring-mid: #203134;
+    --ring-inner: #254046;
+    --error: #d4748a;
+    --success: #6fbfc9;
+  }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -348,6 +368,38 @@ canvas#trace {
   font-size: 11px;
   letter-spacing: 0.14em;
   margin-bottom: 14px;
+}
+.goal-line {
+  margin-top: 10px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.goal-line.met { color: var(--success); }
+.streak-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.streak-cell {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 6px;
+}
+.streak-label {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  margin-bottom: 4px;
+}
+.streak-value {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
 }
 #historyChart {
   width: 100%;

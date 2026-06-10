@@ -5,15 +5,16 @@ import * as engine from './engine.js';
 import * as session from './session.js';
 import * as cues from './cues.js';
 import * as pacer from './pacer.js';
+import { exportHistoryCsv, shareSummaryImage } from './export.js';
 import { settings, saveSettings, loadHistory, addToHistory } from './store.js';
 
 const $ = id => document.getElementById(id);
 
 // Canvas colors (canvas can't read CSS vars; keep in sync with :root tokens)
-const ACCENT = '#20808d';
-const WAVE_FILL = '#20808d1a';
-const PEAK_DOT = '#176975';
-const FAINT = '#b8b5ac';
+const DARK_MQ = matchMedia('(prefers-color-scheme: dark)');
+const CANVAS_LIGHT = { accent: '#20808d', waveFill: '#20808d1a', peakDot: '#176975', faint: '#b8b5ac' };
+const CANVAS_DARK = { accent: '#2a98a5', waveFill: '#2a98a52b', peakDot: '#6fbfc9', faint: '#5f615b' };
+const canvasColors = () => DARK_MQ.matches ? CANVAS_DARK : CANVAS_LIGHT;
 
 let wakeLock = null;
 let lastSummary = null;
@@ -193,8 +194,9 @@ function drawTrace({ timestamps, filt, peaks }) {
   const xOf = t => ((t - tStart) / tSpan) * w;
   const yOf = v => h - ((v - min + pad) / (range + 2 * pad)) * h;
 
+  const col = canvasColors();
   // soft area fill under the curve
-  ctx.fillStyle = WAVE_FILL;
+  ctx.fillStyle = col.waveFill;
   ctx.beginPath();
   ctx.moveTo(xOf(tSlice[0]), h);
   for (let i = 0; i < fSlice.length; i++) {
@@ -204,7 +206,7 @@ function drawTrace({ timestamps, filt, peaks }) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = ACCENT;
+  ctx.strokeStyle = col.accent;
   ctx.lineWidth = 2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < fSlice.length; i++) {
@@ -216,7 +218,7 @@ function drawTrace({ timestamps, filt, peaks }) {
 
   for (const p of peaks) {
     if (p.t >= tStart && p.t <= tStart + tSpan) {
-      ctx.fillStyle = PEAK_DOT;
+      ctx.fillStyle = col.peakDot;
       ctx.beginPath();
       ctx.arc(xOf(p.t), yOf(p.value), 3.5 * dpr, 0, Math.PI * 2);
       ctx.fill();
@@ -246,8 +248,9 @@ function drawSoftChart(c, xs, vals, dots) {
   const xOf = x => inset + ((x - xStart) / xSpan) * (w - 2 * inset);
   const yOf = v => h - ((v - minV) / (maxV - minV)) * h;
 
+  const col = canvasColors();
   // soft area fill under the curve
-  ctx.fillStyle = WAVE_FILL;
+  ctx.fillStyle = col.waveFill;
   ctx.beginPath();
   ctx.moveTo(xOf(xs[0]), h);
   for (let i = 0; i < vals.length; i++) {
@@ -258,7 +261,7 @@ function drawSoftChart(c, xs, vals, dots) {
   ctx.fill();
 
   const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-  ctx.strokeStyle = FAINT;
+  ctx.strokeStyle = col.faint;
   ctx.lineWidth = 1 * dpr;
   ctx.setLineDash([4 * dpr, 4 * dpr]);
   ctx.beginPath();
@@ -267,7 +270,7 @@ function drawSoftChart(c, xs, vals, dots) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.strokeStyle = ACCENT;
+  ctx.strokeStyle = col.accent;
   ctx.lineWidth = 2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < vals.length; i++) {
@@ -278,7 +281,7 @@ function drawSoftChart(c, xs, vals, dots) {
   ctx.stroke();
 
   if (dots) {
-    ctx.fillStyle = PEAK_DOT;
+    ctx.fillStyle = col.peakDot;
     for (let i = 0; i < vals.length; i++) {
       ctx.beginPath();
       ctx.arc(xOf(xs[i]), yOf(vals[i]), 3 * dpr, 0, Math.PI * 2);
@@ -286,6 +289,12 @@ function drawSoftChart(c, xs, vals, dots) {
     }
   }
 }
+
+DARK_MQ.addEventListener('change', () => {
+  // the live trace redraws on its own tick; refresh whichever chart view is open
+  if ($('summaryView').style.display === 'block' && lastSummary) renderSummary(lastSummary);
+  if ($('historyView').style.display === 'block') renderHistory();
+});
 
 function drawSummaryChart(points) {
   const vals = points.map(p => settings.units === 'sec' ? 60 / p.bpm : p.bpm);
@@ -339,6 +348,17 @@ function renderSummary(s) {
   $('summaryStart').textContent = fmtRate(s.start);
   $('summaryEnd').textContent = fmtRate(s.end);
   $('summaryLowest').textContent = fmtRate(s.lowest);
+  const goalLine = $('goalLine');
+  if (settings.goal > 0) {
+    const met = s.avg < settings.goal;
+    goalLine.textContent = met
+      ? `goal met ✓ — avg ${s.avg.toFixed(1)} under ${settings.goal}/min`
+      : `goal: avg ${s.avg.toFixed(1)} vs under ${settings.goal}/min`;
+    goalLine.classList.toggle('met', met);
+    goalLine.style.display = 'block';
+  } else {
+    goalLine.style.display = 'none';
+  }
   drawSummaryChart(s.points);
 }
 
@@ -356,11 +376,41 @@ function fmtDur(durationSec) {
   return `${Math.floor(durationSec / 60)}:${String(Math.floor(durationSec % 60)).padStart(2, '0')}`;
 }
 
+// Day-streak stats from history. A streak is consecutive calendar days with
+// at least one session; the current streak survives until a full day is missed.
+function computeStreaks(hist) {
+  const days = [...new Set(hist.map(r => new Date(r.t).setHours(0, 0, 0, 0)))].sort((a, b) => a - b);
+  let best = 0, run = 0, prev = null;
+  for (const d of days) {
+    run = (prev !== null && Math.round((d - prev) / 86400000) === 1) ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = d;
+  }
+  const today = new Date().setHours(0, 0, 0, 0);
+  const last = days[days.length - 1];
+  const current = (last === today || Math.round((today - last) / 86400000) === 1) ? run : 0;
+  return { current, best };
+}
+
 function renderHistory() {
   const hist = loadHistory();
   const sec = settings.units === 'sec';
   $('historyEmpty').style.display = hist.length ? 'none' : 'block';
   $('historyChart').style.display = hist.length >= 2 ? 'block' : 'none';
+
+  $('streakRow').style.display = hist.length ? 'grid' : 'none';
+  if (hist.length) {
+    const { current, best } = computeStreaks(hist);
+    $('streakCur').textContent = `${current}d`;
+    $('streakBest').textContent = `${best}d`;
+    if (settings.goal > 0) {
+      $('goalsMetLabel').textContent = `goals met (<${settings.goal})`;
+      $('goalsMet').textContent = `${hist.filter(r => r.avg < settings.goal).length}/${hist.length}`;
+    } else {
+      $('goalsMetLabel').textContent = 'sessions';
+      $('goalsMet').textContent = String(hist.length);
+    }
+  }
 
   const list = $('historyList');
   list.textContent = '';
@@ -379,6 +429,7 @@ function renderHistory() {
   $('historyCount').textContent = !hist.length ? '' :
     hist.length > 50 ? `showing last 50 of ${hist.length} sessions` :
     `${hist.length} session${hist.length === 1 ? '' : 's'}`;
+  $('csvBtn').style.display = hist.length ? 'block' : 'none';
 
   if (hist.length >= 2) {
     drawSoftChart($('historyChart'), hist.map((r, i) => i), hist.map(r => sec ? 60 / r.avg : r.avg), true);
@@ -394,6 +445,8 @@ function showHistory(from) {
   renderHistory();
 }
 
+$('csvBtn').addEventListener('click', () => exportHistoryCsv(loadHistory()));
+$('shareBtn').addEventListener('click', () => { if (lastSummary) shareSummaryImage(lastSummary, settings.units); });
 $('historyBtn').addEventListener('click', () => showHistory('main'));
 $('historyBtn2').addEventListener('click', () => showHistory('summary'));
 $('historyBackBtn').addEventListener('click', () => {
@@ -463,12 +516,19 @@ $('newSessionBtn').addEventListener('click', () => {
   startedStatus(`New ${session.duration()}-min session started.`);
 });
 
-// --- Pacer controls ---
+// --- Pacer + goal controls ---
 function applyPacerControls() {
   $('pacerSelect').value = String(settings.pacer);
   $('pacerVibeRow').style.display = settings.pacer > 0 ? 'flex' : 'none';
   $('pacerVibeBtn').classList.toggle('on', settings.pacerVibe);
+  $('goalSelect').value = String(settings.goal);
 }
+
+$('goalSelect').addEventListener('change', () => {
+  settings.goal = parseInt($('goalSelect').value, 10) || 0;
+  saveSettings();
+  if (lastSummary && $('summaryView').style.display === 'block') renderSummary(lastSummary);
+});
 
 $('pacerSelect').addEventListener('change', () => {
   settings.pacer = parseInt($('pacerSelect').value, 10) || 0;

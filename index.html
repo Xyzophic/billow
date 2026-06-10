@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Billow — Belly Breathing Tracker</title>
 <meta name="description" content="Put your phone on your belly and watch your breath. Billow uses your phone's motion sensors to track diaphragmatic breathing and show your live breaths per minute.">
-<meta name="theme-color" content="#fbfaf4">
-<meta name="color-scheme" content="light">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fbfaf4">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171615">
+<meta name="color-scheme" content="light dark">
 <meta property="og:title" content="Billow — Belly Breathing Tracker">
 <meta property="og:description" content="Put your phone on your belly and watch your breath. Live breaths-per-minute from your phone's motion sensors. No camera, no account, nothing leaves your device.">
 <meta property="og:type" content="website">
@@ -93,6 +94,15 @@
     <button id="pacerVibeBtn">vibrate with pacer</button>
   </div>
 
+  <select id="goalSelect" class="duration-select" aria-label="Session goal">
+    <option value="0" selected>goal off</option>
+    <option value="10">goal: avg under 10 per minute</option>
+    <option value="8">goal: avg under 8 per minute</option>
+    <option value="7">goal: avg under 7 per minute</option>
+    <option value="6">goal: avg under 6 per minute</option>
+    <option value="5">goal: avg under 5 per minute</option>
+  </select>
+
   <select id="durationSelect" class="duration-select" aria-label="Session duration">
     <option value="1">1 min session</option>
     <option value="2">2 min session</option>
@@ -120,6 +130,7 @@
       </div>
     </div>
     <div class="summary-suffix"><span id="summaryUnitsWord">avg breaths per minute</span> over <span id="summaryDuration">5:00</span></div>
+    <div class="goal-line" id="goalLine" style="display:none;"></div>
     <canvas id="summaryChart"></canvas>
     <div class="summary-row">
       <div class="summary-cell">
@@ -137,15 +148,22 @@
     </div>
   </div>
   <button id="newSessionBtn">start new session</button>
+  <button id="shareBtn" class="secondary">share image</button>
   <button id="historyBtn2" class="link-btn">history</button>
 </div>
 
 <div id="historyView" style="display:none;">
   <div class="history-header">history</div>
+  <div class="streak-row" id="streakRow" style="display:none;">
+    <div class="streak-cell"><div class="streak-label">streak</div><div class="streak-value" id="streakCur">—</div></div>
+    <div class="streak-cell"><div class="streak-label">best streak</div><div class="streak-value" id="streakBest">—</div></div>
+    <div class="streak-cell"><div class="streak-label" id="goalsMetLabel">goals met</div><div class="streak-value" id="goalsMet">—</div></div>
+  </div>
   <canvas id="historyChart" style="display:none;"></canvas>
   <div class="history-empty" id="historyEmpty" style="display:none;">no sessions yet — finish a timed session and it will appear here.</div>
   <div id="historyList"></div>
   <div class="history-count" id="historyCount"></div>
+  <button id="csvBtn" class="link-btn">export csv</button>
   <button id="historyBackBtn" class="secondary">back</button>
 </div>
 

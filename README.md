@@ -12,6 +12,9 @@ Billow is a belly-breathing (diaphragmatic breathing) tracker that runs entirely
 - ⏱ Timed sessions (1–30 min) with a soft end-of-session chime and summary
 - 📒 Session history saved on your phone, with a trend chart across sessions
 - 🫧 Optional breathing pacer: the orb guides you at a target pace (4–10/min) with whisper cues and optional vibration
+- 🎯 Optional goal ("avg under N per minute") with day streaks tracked in history
+- 📤 Export history as CSV, or share a session as an image
+- 🌙 Follows your phone's light/dark mode
 - 🏠 Installable: add to home screen for a full-screen, offline-capable app
 
 ## How it works
@@ -36,6 +39,7 @@ Static files, no build step — plain ES modules. Serve the folder over HTTPS (m
 - `js/store.js` — on-device persistence (settings; session history soon)
 - `js/cues.js` — chime and haptics
 - `js/pacer.js` — breathing pacer rhythm (drives the orb when enabled)
+- `js/export.js` — CSV export and share-image rendering
 - `js/ui.js` — entry module; DOM wiring and drawing
 
 When adding a file, also add it to the cache list in `sw.js` and bump the cache version.
