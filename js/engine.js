@@ -148,12 +148,13 @@ function detectPeaks(filt, samplingRate) {
 }
 
 // Run one analysis pass. Returns null when there is nothing new to show,
-// otherwise { ready, bpm (number|null), statusText, axisLabel, recentCount, trace }.
+// otherwise { ready, bpm (number|null), statusText, axisLabel, recentCount,
+// orbNorm (-1..1 — latest filtered sample vs recent variance), trace }.
 export function analyze() {
   if (timestamps.length < 30) {
     return {
       ready: false, bpm: null, statusText: 'acquiring signal…',
-      axisLabel: '—', recentCount: 0,
+      axisLabel: '—', recentCount: 0, orbNorm: 0,
       trace: { timestamps: [], filt: [], peaks: [] },
     };
   }
@@ -184,12 +185,16 @@ export function analyze() {
     statusText = 'first breath detected…';
   }
 
+  const orbStd = stdOfRecent(filt, Math.floor(VARIANCE_WINDOW_SEC * samplingRate));
+  const orbNorm = orbStd > 0 ? Math.max(-1, Math.min(1, filt[filt.length - 1] / (2 * orbStd))) : 0;
+
   return {
     ready: bpm !== null,
     bpm,
     statusText,
     axisLabel: AXIS_LABELS[activeChannel] || activeChannel,
     recentCount: recentPeaks.length,
+    orbNorm,
     trace: { timestamps, filt, peaks: peakObjs },
   };
 }

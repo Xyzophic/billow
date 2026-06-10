@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Billow — Belly Breathing Tracker</title>
 <meta name="description" content="Put your phone on your belly and watch your breath. Billow uses your phone's motion sensors to track diaphragmatic breathing and show your live breaths per minute.">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#141124">
+<meta name="color-scheme" content="dark">
 <meta property="og:title" content="Billow — Belly Breathing Tracker">
 <meta property="og:description" content="Put your phone on your belly and watch your breath. Live breaths-per-minute from your phone's motion sensors. No camera, no account, nothing leaves your device.">
 <meta property="og:type" content="website">
@@ -18,8 +19,7 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<h1>Billow</h1>
-<div class="subtitle">Belly breathing tracker</div>
+<h1 class="wordmark">billow</h1>
 
 <div id="unsupported" style="display:none;">
   Billow reads your phone's motion sensors, which this device or browser
@@ -32,51 +32,53 @@
 <div id="supportedUI">
 
 <div id="quickStart" class="quickstart">
-  <div class="quickstart-title">Get started</div>
+  <div class="quickstart-title">get started</div>
   <ol>
-    <li id="qsEnable">Tap <strong>Enable Motion Sensors</strong> below and allow access.</li>
+    <li id="qsEnable">Tap <strong>enable motion sensors</strong> below and allow access.</li>
     <li>Place the phone flat on your belly so you can see the screen.</li>
-    <li>Press <strong>Reset</strong>.</li>
+    <li>Press <strong>reset</strong>.</li>
     <li>Take two breaths — Billow calibrates on them.</li>
     <li>Start a session at your desired length.</li>
   </ol>
 </div>
 
-<button id="enableBtn">Enable Motion Sensors</button>
+<button id="enableBtn">enable motion sensors</button>
 <div id="status" class="status">Tap the button above to begin. Your phone will ask permission to use its motion sensors.</div>
 
 <div id="mainSection" style="display:none;">
+
+  <!-- pacer hook: whisper cue slot ("breathe out…") — left empty until the pacer feature exists -->
+  <div class="pacer-cue" id="pacerCue" aria-hidden="true"></div>
+
+  <div class="orb-zone">
+    <div class="orb-stack">
+      <svg class="progress-ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="track" cx="50" cy="50" r="48.5"/>
+        <circle class="bar" id="progressBar" cx="50" cy="50" r="48.5"/>
+      </svg>
+      <div class="orb" id="orb">
+        <div class="orb-mid"></div>
+        <div class="orb-core"></div>
+        <div class="orb-text">
+          <div class="bpm-num" id="bpmNum">—</div>
+          <div class="bpm-sub" id="bpmLabel">breaths per minute</div>
+        </div>
+      </div>
+    </div>
+    <div class="orb-status">
+      <span id="confidence">acquiring signal…</span>
+      <span class="ready-badge" id="readyBadge">calibrating…</span>
+    </div>
+  </div>
+
+  <canvas id="trace"></canvas>
+
+  <div class="meta-line" id="metaLine">signal: — · 0 breaths · 0:00</div>
 
   <div class="units-toggle" role="group" aria-label="Display units">
     <button id="unitsBpm" class="on">breaths/min</button>
     <button id="unitsSec">sec/breath</button>
   </div>
-
-  <div class="bpm-card">
-    <div class="bpm-label-row">
-      <div class="bpm-label" id="bpmLabel">Breaths per minute</div>
-      <span class="ready-badge" id="readyBadge">calibrating…</span>
-    </div>
-    <div class="bpm-num" id="bpmNum">—</div>
-    <div class="bpm-suffix" id="confidence">acquiring signal…</div>
-  </div>
-
-  <div class="meta-row">
-    <div class="meta-cell">
-      <div class="meta-label">Signal</div>
-      <div class="meta-value" id="activeAxis">—</div>
-    </div>
-    <div class="meta-cell">
-      <div class="meta-label">Session</div>
-      <div class="meta-value" id="elapsed">0:00</div>
-    </div>
-    <div class="meta-cell">
-      <div class="meta-label">Breaths (60s)</div>
-      <div class="meta-value" id="peakCount">0</div>
-    </div>
-  </div>
-
-  <canvas id="trace"></canvas>
 
   <select id="durationSelect" class="duration-select" aria-label="Session duration">
     <option value="1">1 min session</option>
@@ -87,35 +89,39 @@
   </select>
 
   <div class="controls">
-    <button id="startBtn" class="secondary">Start 5-min</button>
-    <button id="resetBtn" class="secondary">Reset</button>
+    <button id="startBtn" class="secondary">start 5-min</button>
+    <button id="resetBtn" class="secondary">reset</button>
   </div>
 </div>
 
 <div id="summaryView" style="display:none;">
   <div class="summary-card">
-    <div class="summary-header">Session complete</div>
-    <div class="summary-hero">
-      <div class="summary-avg-bpm" id="summaryAvgBpm">—</div>
-      <div class="summary-suffix"><span id="summaryUnitsWord">avg breaths per minute</span> over <span id="summaryDuration">5:00</span></div>
+    <div class="summary-header">session complete</div>
+    <div class="summary-orb">
+      <div class="orb-mid"></div>
+      <div class="orb-core"></div>
+      <div class="orb-text">
+        <div class="summary-avg-bpm" id="summaryAvgBpm">—</div>
+      </div>
     </div>
+    <div class="summary-suffix"><span id="summaryUnitsWord">avg breaths per minute</span> over <span id="summaryDuration">5:00</span></div>
     <canvas id="summaryChart"></canvas>
     <div class="summary-row">
       <div class="summary-cell">
-        <div class="summary-label">Start</div>
+        <div class="summary-label">start</div>
         <div class="summary-value" id="summaryStart">—</div>
       </div>
       <div class="summary-cell">
-        <div class="summary-label">End</div>
+        <div class="summary-label">end</div>
         <div class="summary-value" id="summaryEnd">—</div>
       </div>
       <div class="summary-cell">
-        <div class="summary-label" id="summaryLowestLabel">Lowest</div>
+        <div class="summary-label" id="summaryLowestLabel">lowest</div>
         <div class="summary-value" id="summaryLowest">—</div>
       </div>
     </div>
   </div>
-  <button id="newSessionBtn">Start new session</button>
+  <button id="newSessionBtn">start new session</button>
 </div>
 
 <div id="usageNote" class="note">

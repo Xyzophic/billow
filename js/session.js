@@ -41,6 +41,13 @@ export function timerExpired() {
   return timerStopAt !== null && Date.now() >= timerStopAt;
 }
 
+// Fraction of the timed session completed, 0..1.
+export function progress() {
+  if (!inSession || timerStopAt === null) return 0;
+  const total = durationMinutes * 60 * 1000;
+  return Math.max(0, Math.min(1, 1 - (timerStopAt - Date.now()) / total));
+}
+
 // Ends the session and returns summary stats, or null if too little was
 // detected to summarize. Stats stay in bpm — display units are UI-only.
 export function end() {

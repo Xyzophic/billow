@@ -8,8 +8,45 @@ import { settings, saveSettings } from './store.js';
 
 const $ = id => document.getElementById(id);
 
+// Canvas colors (canvas can't read CSS vars; keep in sync with :root tokens)
+const ACCENT = '#6f64b8';
+const WAVE_FILL = '#211b41';
+const PEAK_DOT = '#a89ee0';
+const FAINT = '#544a85';
+
 let wakeLock = null;
 let lastSummary = null;
+
+// --- Breathing orb ---
+// All orb motion routes through setOrbScale() so the upcoming pacer feature can
+// drive the orb from a target rhythm instead of the measured signal.
+const orbEl = $('orb');
+let orbScale = 1, orbTarget = 1;
+function setOrbScale(value) {
+  orbTarget = Math.max(0.96, Math.min(1.06, value));
+}
+function orbFrame() {
+  const d = orbTarget - orbScale;
+  if (Math.abs(d) > 0.0004) {
+    orbScale += d * 0.06;
+    orbEl.style.transform = `scale(${orbScale.toFixed(4)})`;
+  }
+  requestAnimationFrame(orbFrame);
+}
+requestAnimationFrame(orbFrame);
+
+// --- Session progress ring + quiet meta line ---
+const RING_C = 304.7; // matches stroke-dasharray of .progress-ring .bar
+let metaAxis = '—', metaBreaths = 0, metaElapsed = '0:00';
+function updateMetaLine() {
+  let line = `signal: ${metaAxis} · ${metaBreaths} breaths · ${metaElapsed}`;
+  if (session.isActive()) line += ` / ${session.duration()}:00`;
+  $('metaLine').textContent = line;
+}
+function updateProgressRing() {
+  const frac = session.isActive() ? session.progress() : 0;
+  $('progressBar').style.strokeDashoffset = (RING_C * (1 - frac)).toFixed(1);
+}
 
 // --- Display units (bpm vs seconds per breath) ---
 // Everything is measured and stored in bpm; units only change formatting.
@@ -22,9 +59,9 @@ function applyUnits() {
   const sec = settings.units === 'sec';
   $('unitsBpm').classList.toggle('on', !sec);
   $('unitsSec').classList.toggle('on', sec);
-  $('bpmLabel').textContent = sec ? 'Seconds per breath' : 'Breaths per minute';
+  $('bpmLabel').textContent = sec ? 'seconds per breath' : 'breaths per minute';
   $('summaryUnitsWord').textContent = sec ? 'avg seconds per breath' : 'avg breaths per minute';
-  $('summaryLowestLabel').textContent = sec ? 'Slowest' : 'Lowest';
+  $('summaryLowestLabel').textContent = sec ? 'slowest' : 'lowest';
   if (lastSummary) renderSummary(lastSummary);
 }
 
@@ -97,10 +134,16 @@ function updateAnalysis() {
   if (a.bpm !== null) session.record(a.bpm);
   $('bpmNum').textContent = fmtRate(a.bpm);
   $('confidence').textContent = a.statusText;
-  $('activeAxis').textContent = a.axisLabel;
-  $('peakCount').textContent = a.recentCount;
   $('readyBadge').textContent = a.ready ? 'ready ✓' : 'calibrating…';
   $('readyBadge').classList.toggle('ready', a.ready);
+  metaAxis = a.axisLabel;
+  metaBreaths = a.recentCount;
+  updateMetaLine();
+
+  // Drive the orb from the latest filtered sample (display only; the pacer can
+  // take over later by calling setOrbScale from its own rhythm instead).
+  setOrbScale(a.trace.filt.length ? 1.01 + 0.05 * a.orbNorm : 1);
+
   drawTrace(a.trace);
 }
 
@@ -111,8 +154,7 @@ function drawTrace({ timestamps, filt, peaks }) {
   const dpr = window.devicePixelRatio || 1;
   const w = c.width = c.offsetWidth * dpr;
   const h = c.height = c.offsetHeight * dpr;
-  ctx.fillStyle = '#0a0a0a';
-  ctx.fillRect(0, 0, w, h);
+  ctx.clearRect(0, 0, w, h);
   if (filt.length < 2 || timestamps.length < 2) return;
 
   const TRACE_SECONDS = 30;
@@ -129,16 +171,23 @@ function drawTrace({ timestamps, filt, peaks }) {
   const range = (max - min) || 1;
   const pad = range * 0.15;
 
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 1 * dpr;
-  ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
-
   const tStart = tSlice[0];
   const tSpan = (tSlice[tSlice.length - 1] - tStart) || 1;
   const xOf = t => ((t - tStart) / tSpan) * w;
   const yOf = v => h - ((v - min + pad) / (range + 2 * pad)) * h;
 
-  ctx.strokeStyle = '#ff6b35';
+  // soft area fill under the curve
+  ctx.fillStyle = WAVE_FILL;
+  ctx.beginPath();
+  ctx.moveTo(xOf(tSlice[0]), h);
+  for (let i = 0; i < fSlice.length; i++) {
+    ctx.lineTo(xOf(tSlice[i]), yOf(fSlice[i]));
+  }
+  ctx.lineTo(xOf(tSlice[tSlice.length - 1]), h);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < fSlice.length; i++) {
@@ -150,9 +199,9 @@ function drawTrace({ timestamps, filt, peaks }) {
 
   for (const p of peaks) {
     if (p.t >= tStart && p.t <= tStart + tSpan) {
-      ctx.fillStyle = '#4ade80';
+      ctx.fillStyle = PEAK_DOT;
       ctx.beginPath();
-      ctx.arc(xOf(p.t), yOf(p.value), 5 * dpr, 0, Math.PI * 2);
+      ctx.arc(xOf(p.t), yOf(p.value), 3.5 * dpr, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -165,8 +214,7 @@ function drawSummaryChart(points) {
   const dpr = window.devicePixelRatio || 1;
   const w = c.width = c.offsetWidth * dpr;
   const h = c.height = c.offsetHeight * dpr;
-  ctx.fillStyle = '#0a0a0a';
-  ctx.fillRect(0, 0, w, h);
+  ctx.clearRect(0, 0, w, h);
   if (points.length < 2) return;
 
   const vals = points.map(p => settings.units === 'sec' ? 60 / p.bpm : p.bpm);
@@ -182,8 +230,19 @@ function drawSummaryChart(points) {
   const xOf = t => ((t - tStart) / tSpan) * w;
   const yOf = v => h - ((v - minV) / (maxV - minV)) * h;
 
+  // soft area fill under the curve
+  ctx.fillStyle = WAVE_FILL;
+  ctx.beginPath();
+  ctx.moveTo(xOf(ts[0]), h);
+  for (let i = 0; i < vals.length; i++) {
+    ctx.lineTo(xOf(ts[i]), yOf(vals[i]));
+  }
+  ctx.lineTo(xOf(ts[ts.length - 1]), h);
+  ctx.closePath();
+  ctx.fill();
+
   const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-  ctx.strokeStyle = '#444';
+  ctx.strokeStyle = FAINT;
   ctx.lineWidth = 1 * dpr;
   ctx.setLineDash([4 * dpr, 4 * dpr]);
   ctx.beginPath();
@@ -192,7 +251,7 @@ function drawSummaryChart(points) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.strokeStyle = '#ff6b35';
+  ctx.strokeStyle = ACCENT;
   ctx.lineWidth = 2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < vals.length; i++) {
@@ -207,7 +266,9 @@ function drawSummaryChart(points) {
 function updateClock() {
   if (!engine.isListening()) return;
   const elapsed = Math.floor(engine.elapsedSec());
-  $('elapsed').textContent = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+  metaElapsed = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+  updateMetaLine();
+  updateProgressRing();
   if (session.isActive() && session.timerExpired()) {
     finishSession();
   }
@@ -216,6 +277,7 @@ function updateClock() {
 function finishSession() {
   const summary = session.end();
   styleStartButton(false);
+  updateProgressRing();
   cues.endHaptic();
   if (settings.chime) cues.chime();
   if (!summary) {
@@ -243,7 +305,7 @@ function renderSummary(s) {
 // --- Controls ---
 function styleStartButton(active) {
   const btn = $('startBtn');
-  btn.textContent = active ? 'End session early' : `Start ${session.duration()}-min`;
+  btn.textContent = active ? 'end session early' : `start ${session.duration()}-min`;
   btn.classList.toggle('secondary', !active);
   btn.classList.toggle('danger', active);
 }
@@ -253,6 +315,7 @@ function beginSession() {
   session.start();
   $('quickStart').style.display = 'none';
   styleStartButton(true);
+  updateProgressRing();
   requestWakeLock();
 }
 
@@ -277,6 +340,7 @@ $('resetBtn').addEventListener('click', () => {
   engine.restartClock();
   session.clear();
   styleStartButton(false);
+  updateProgressRing();
   setStatus('Reset. Listening fresh.', 'success');
 });
 
