@@ -92,6 +92,8 @@
     <button id="startBtn" class="secondary">start 5-min</button>
     <button id="resetBtn" class="secondary">reset</button>
   </div>
+
+  <button id="historyBtn" class="link-btn">history</button>
 </div>
 
 <div id="summaryView" style="display:none;">
@@ -122,6 +124,16 @@
     </div>
   </div>
   <button id="newSessionBtn">start new session</button>
+  <button id="historyBtn2" class="link-btn">history</button>
+</div>
+
+<div id="historyView" style="display:none;">
+  <div class="history-header">history</div>
+  <canvas id="historyChart" style="display:none;"></canvas>
+  <div class="history-empty" id="historyEmpty" style="display:none;">no sessions yet — finish a timed session and it will appear here.</div>
+  <div id="historyList"></div>
+  <div class="history-count" id="historyCount"></div>
+  <button id="historyBackBtn" class="secondary">back</button>
 </div>
 
 <div id="usageNote" class="note">

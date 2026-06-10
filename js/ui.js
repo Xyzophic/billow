@@ -4,7 +4,7 @@
 import * as engine from './engine.js';
 import * as session from './session.js';
 import * as cues from './cues.js';
-import { settings, saveSettings } from './store.js';
+import { settings, saveSettings, loadHistory, addToHistory } from './store.js';
 
 const $ = id => document.getElementById(id);
 
@@ -63,6 +63,7 @@ function applyUnits() {
   $('summaryUnitsWord').textContent = sec ? 'avg seconds per breath' : 'avg breaths per minute';
   $('summaryLowestLabel').textContent = sec ? 'slowest' : 'lowest';
   if (lastSummary) renderSummary(lastSummary);
+  if ($('historyView').style.display === 'block') renderHistory();
 }
 
 for (const [btnId, units] of [['unitsBpm', 'bpm'], ['unitsSec', 'sec']]) {
@@ -207,37 +208,36 @@ function drawTrace({ timestamps, filt, peaks }) {
   }
 }
 
-function drawSummaryChart(points) {
-  const c = $('summaryChart');
-  if (!c.offsetWidth) { requestAnimationFrame(() => drawSummaryChart(points)); return; }
+// Soft area chart shared by the summary and history views.
+function drawSoftChart(c, xs, vals, dots) {
+  if (!c.offsetWidth) { requestAnimationFrame(() => drawSoftChart(c, xs, vals, dots)); return; }
   const ctx = c.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const w = c.width = c.offsetWidth * dpr;
   const h = c.height = c.offsetHeight * dpr;
   ctx.clearRect(0, 0, w, h);
-  if (points.length < 2) return;
+  if (vals.length < 2) return;
 
-  const vals = points.map(p => settings.units === 'sec' ? 60 / p.bpm : p.bpm);
-  const ts = points.map(p => p.t);
   let minV = Math.min(...vals);
   let maxV = Math.max(...vals);
   const range = (maxV - minV) || 1;
   const pad = range * 0.15;
   minV -= pad; maxV += pad;
 
-  const tStart = ts[0];
-  const tSpan = (ts[ts.length - 1] - tStart) || 1;
-  const xOf = t => ((t - tStart) / tSpan) * w;
+  const xStart = xs[0];
+  const xSpan = (xs[xs.length - 1] - xStart) || 1;
+  const inset = dots ? 6 * dpr : 0; // keep edge dots inside the canvas
+  const xOf = x => inset + ((x - xStart) / xSpan) * (w - 2 * inset);
   const yOf = v => h - ((v - minV) / (maxV - minV)) * h;
 
   // soft area fill under the curve
   ctx.fillStyle = WAVE_FILL;
   ctx.beginPath();
-  ctx.moveTo(xOf(ts[0]), h);
+  ctx.moveTo(xOf(xs[0]), h);
   for (let i = 0; i < vals.length; i++) {
-    ctx.lineTo(xOf(ts[i]), yOf(vals[i]));
+    ctx.lineTo(xOf(xs[i]), yOf(vals[i]));
   }
-  ctx.lineTo(xOf(ts[ts.length - 1]), h);
+  ctx.lineTo(xOf(xs[xs.length - 1]), h);
   ctx.closePath();
   ctx.fill();
 
@@ -255,11 +255,25 @@ function drawSummaryChart(points) {
   ctx.lineWidth = 2 * dpr;
   ctx.beginPath();
   for (let i = 0; i < vals.length; i++) {
-    const x = xOf(ts[i]);
+    const x = xOf(xs[i]);
     const y = yOf(vals[i]);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
+
+  if (dots) {
+    ctx.fillStyle = PEAK_DOT;
+    for (let i = 0; i < vals.length; i++) {
+      ctx.beginPath();
+      ctx.arc(xOf(xs[i]), yOf(vals[i]), 3 * dpr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawSummaryChart(points) {
+  const vals = points.map(p => settings.units === 'sec' ? 60 / p.bpm : p.bpm);
+  drawSoftChart($('summaryChart'), points.map(p => p.t), vals, false);
 }
 
 // --- Session timer ---
@@ -285,6 +299,15 @@ function finishSession() {
     return;
   }
   lastSummary = summary;
+  const r2 = v => Math.round(v * 100) / 100;
+  addToHistory({
+    t: Date.now(),
+    durationSec: Math.round(summary.durationSec),
+    avg: r2(summary.avg),
+    start: r2(summary.start),
+    end: r2(summary.end),
+    lowest: r2(summary.lowest),
+  });
   $('mainSection').style.display = 'none';
   $('usageNote').style.display = 'none';
   $('summaryView').style.display = 'block';
@@ -301,6 +324,70 @@ function renderSummary(s) {
   $('summaryLowest').textContent = fmtRate(s.lowest);
   drawSummaryChart(s.points);
 }
+
+// --- History view ---
+let historyReturn = 'main';
+
+function fmtWhen(t) {
+  const d = new Date(t);
+  const day = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${day} · ${time}`.toLowerCase();
+}
+
+function fmtDur(durationSec) {
+  return `${Math.floor(durationSec / 60)}:${String(Math.floor(durationSec % 60)).padStart(2, '0')}`;
+}
+
+function renderHistory() {
+  const hist = loadHistory();
+  const sec = settings.units === 'sec';
+  $('historyEmpty').style.display = hist.length ? 'none' : 'block';
+  $('historyChart').style.display = hist.length >= 2 ? 'block' : 'none';
+
+  const list = $('historyList');
+  list.textContent = '';
+  for (const r of hist.slice(-50).reverse()) {
+    const row = document.createElement('div');
+    row.className = 'history-row';
+    const when = document.createElement('span');
+    when.className = 'when';
+    when.textContent = fmtWhen(r.t);
+    const stats = document.createElement('span');
+    stats.textContent = `${fmtDur(r.durationSec)} · avg ${fmtRate(r.avg)} · ${sec ? 'slow' : 'low'} ${fmtRate(r.lowest)}`;
+    row.append(when, stats);
+    list.appendChild(row);
+  }
+
+  $('historyCount').textContent = !hist.length ? '' :
+    hist.length > 50 ? `showing last 50 of ${hist.length} sessions` :
+    `${hist.length} session${hist.length === 1 ? '' : 's'}`;
+
+  if (hist.length >= 2) {
+    drawSoftChart($('historyChart'), hist.map((r, i) => i), hist.map(r => sec ? 60 / r.avg : r.avg), true);
+  }
+}
+
+function showHistory(from) {
+  historyReturn = from;
+  $('mainSection').style.display = 'none';
+  $('summaryView').style.display = 'none';
+  $('usageNote').style.display = 'none';
+  $('historyView').style.display = 'block';
+  renderHistory();
+}
+
+$('historyBtn').addEventListener('click', () => showHistory('main'));
+$('historyBtn2').addEventListener('click', () => showHistory('summary'));
+$('historyBackBtn').addEventListener('click', () => {
+  $('historyView').style.display = 'none';
+  if (historyReturn === 'summary') {
+    $('summaryView').style.display = 'block';
+  } else {
+    $('mainSection').style.display = 'block';
+    $('usageNote').style.display = 'block';
+  }
+});
 
 // --- Controls ---
 function styleStartButton(active) {

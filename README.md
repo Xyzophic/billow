@@ -10,6 +10,7 @@ Billow is a belly-breathing (diaphragmatic breathing) tracker that runs entirely
 - 🔄 Show your pace as breaths per minute or seconds per breath
 - ✅ "Ready" badge tells you when the signal is locked on
 - ⏱ Timed sessions (1–30 min) with a soft end-of-session chime and summary
+- 📒 Session history saved on your phone, with a trend chart across sessions
 - 🏠 Installable: add to home screen for a full-screen, offline-capable app
 
 ## How it works
