@@ -4,6 +4,7 @@
 import * as engine from './engine.js';
 import * as session from './session.js';
 import * as cues from './cues.js';
+import * as pacer from './pacer.js';
 import { settings, saveSettings, loadHistory, addToHistory } from './store.js';
 
 const $ = id => document.getElementById(id);
@@ -34,6 +35,20 @@ function orbFrame() {
   requestAnimationFrame(orbFrame);
 }
 requestAnimationFrame(orbFrame);
+
+pacer.init({
+  onScale: setOrbScale,
+  onCue: txt => { $('pacerCue').textContent = txt; },
+});
+
+function syncPacer() {
+  // The pacer guides the orb only during an active session, and only when enabled.
+  if (session.isActive() && settings.pacer > 0) {
+    pacer.start(settings.pacer, settings.pacerVibe);
+  } else {
+    pacer.stop();
+  }
+}
 
 // --- Session progress ring + quiet meta line ---
 const RING_C = 304.7; // matches stroke-dasharray of .progress-ring .bar
@@ -141,9 +156,10 @@ function updateAnalysis() {
   metaBreaths = a.recentCount;
   updateMetaLine();
 
-  // Drive the orb from the latest filtered sample (display only; the pacer can
-  // take over later by calling setOrbScale from its own rhythm instead).
-  setOrbScale(a.trace.filt.length ? 1.01 + 0.05 * a.orbNorm : 1);
+  // Drive the orb from the latest filtered sample — unless the pacer owns it.
+  if (!pacer.isActive()) {
+    setOrbScale(a.trace.filt.length ? 1.01 + 0.05 * a.orbNorm : 1);
+  }
 
   drawTrace(a.trace);
 }
@@ -290,6 +306,7 @@ function updateClock() {
 
 function finishSession() {
   const summary = session.end();
+  syncPacer();
   styleStartButton(false);
   updateProgressRing();
   cues.endHaptic();
@@ -400,10 +417,16 @@ function styleStartButton(active) {
 function beginSession() {
   cues.unlockAudio();
   session.start();
+  syncPacer();
   $('quickStart').style.display = 'none';
   styleStartButton(true);
   updateProgressRing();
   requestWakeLock();
+}
+
+function startedStatus(prefix) {
+  const guide = settings.pacer > 0 ? `Pacer at ${settings.pacer}/min — breathe with the orb.` : 'Slow your breath.';
+  setStatus(`${prefix} ${guide}`, 'success');
 }
 
 $('startBtn').addEventListener('click', () => {
@@ -413,7 +436,7 @@ $('startBtn').addEventListener('click', () => {
     return;
   }
   beginSession();
-  setStatus(`${session.duration()}-min session started. Slow your breath.`, 'success');
+  startedStatus(`${session.duration()}-min session started.`);
 });
 
 $('durationSelect').addEventListener('change', () => {
@@ -426,6 +449,7 @@ $('durationSelect').addEventListener('change', () => {
 $('resetBtn').addEventListener('click', () => {
   engine.restartClock();
   session.clear();
+  syncPacer();
   styleStartButton(false);
   updateProgressRing();
   setStatus('Reset. Listening fresh.', 'success');
@@ -436,7 +460,28 @@ $('newSessionBtn').addEventListener('click', () => {
   $('mainSection').style.display = 'block';
   $('usageNote').style.display = 'block';
   beginSession();
-  setStatus(`New ${session.duration()}-min session started.`, 'success');
+  startedStatus(`New ${session.duration()}-min session started.`);
+});
+
+// --- Pacer controls ---
+function applyPacerControls() {
+  $('pacerSelect').value = String(settings.pacer);
+  $('pacerVibeRow').style.display = settings.pacer > 0 ? 'flex' : 'none';
+  $('pacerVibeBtn').classList.toggle('on', settings.pacerVibe);
+}
+
+$('pacerSelect').addEventListener('change', () => {
+  settings.pacer = parseInt($('pacerSelect').value, 10) || 0;
+  saveSettings();
+  applyPacerControls();
+  syncPacer(); // takes effect immediately mid-session
+});
+
+$('pacerVibeBtn').addEventListener('click', () => {
+  settings.pacerVibe = !settings.pacerVibe;
+  saveSettings();
+  applyPacerControls();
+  syncPacer();
 });
 
 function setStatus(msg, type) {
@@ -446,6 +491,7 @@ function setStatus(msg, type) {
 }
 
 applyUnits();
+applyPacerControls();
 
 // --- PWA ---
 if ('serviceWorker' in navigator) {

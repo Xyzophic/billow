@@ -6,6 +6,8 @@ const SETTINGS_KEY = 'billow-settings';
 const DEFAULTS = {
   units: 'bpm', // 'bpm' | 'sec' (seconds per breath)
   chime: true,
+  pacer: 0, // 0 = off, otherwise target breaths per minute
+  pacerVibe: false,
 };
 
 export const settings = loadSettings();

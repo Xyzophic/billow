@@ -32,6 +32,21 @@ export function chime() {
   }
 }
 
+// Pacer rhythm pulse — distinct vibration per phase on Android; iOS web pages
+// can't vibrate, so fall back to the hidden-switch haptic tick.
+export function pacerPulse(kind) {
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate(kind === 'in' ? 80 : [50, 60, 50]);
+      return;
+    }
+  } catch (e) {}
+  try {
+    const sw = document.getElementById('hapticSwitch');
+    if (sw) sw.click();
+  } catch (e) {}
+}
+
 export function endHaptic() {
   // iOS 18+ trick: programmatically clicking a hidden checkbox switch fires native haptic
   try {
