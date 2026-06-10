@@ -7,7 +7,9 @@ Billow is a belly-breathing (diaphragmatic breathing) tracker that runs entirely
 - 📱 No app store, no account, no camera — just a web page
 - 🔒 100% on-device: sensor data never leaves your phone
 - 📈 Live breath waveform with per-breath detection
-- ⏱ Timed sessions (1–30 min) with an end-of-session summary
+- 🔄 Show your pace as breaths per minute or seconds per breath
+- ✅ "Ready" badge tells you when the signal is locked on
+- ⏱ Timed sessions (1–30 min) with a soft end-of-session chime and summary
 - 🏠 Installable: add to home screen for a full-screen, offline-capable app
 
 ## How it works
@@ -23,7 +25,17 @@ Breathing tilts a phone resting on your belly by a fraction of a degree. Billow 
 
 ## Development
 
-It's a single static page — no build step. Serve the folder over HTTPS (motion sensors require a secure context) and open it on a phone.
+Static files, no build step — plain ES modules. Serve the folder over HTTPS (motion sensors require a secure context) and open it on a phone.
+
+- `index.html` — markup only
+- `css/app.css` — styles
+- `js/engine.js` — breath detection (validated against real sessions; change with care)
+- `js/session.js` — session timer and summary stats
+- `js/store.js` — on-device persistence (settings; session history soon)
+- `js/cues.js` — chime and haptics
+- `js/ui.js` — entry module; DOM wiring and drawing
+
+When adding a file, also add it to the cache list in `sw.js` and bump the cache version.
 
 ## Disclaimer
 
