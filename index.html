@@ -177,6 +177,28 @@ canvas {
   padding: 10px 12px;
   margin-top: 16px;
 }
+.quickstart {
+  background: linear-gradient(180deg, #1d1308, #120c06);
+  border: 1px solid #3a2415;
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.quickstart-title {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 8px;
+}
+.quickstart ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.quickstart li::marker { color: var(--accent); font-weight: 700; }
 .steps { margin: 8px 0 0; padding-left: 16px; }
 .steps li { margin-bottom: 4px; }
 .disclaimer {
@@ -272,6 +294,18 @@ canvas {
 </div>
 
 <div id="supportedUI">
+
+<div id="quickStart" class="quickstart">
+  <div class="quickstart-title">Get started</div>
+  <ol>
+    <li id="qsEnable">Tap <strong>Enable Motion Sensors</strong> below and allow access.</li>
+    <li>Place the phone flat on your belly so you can see the screen.</li>
+    <li>Press <strong>Reset</strong>.</li>
+    <li>Take two breaths — Billow calibrates on them.</li>
+    <li>Start a session at your desired length.</li>
+  </ol>
+</div>
+
 <button id="enableBtn">Enable Motion Sensors</button>
 <div id="status" class="status">Tap the button above to begin. Your phone will ask permission to use its motion sensors.</div>
 
@@ -341,14 +375,7 @@ canvas {
 </div>
 
 <div id="usageNote" class="note">
-  <strong>How to use Billow</strong>
-  <ol class="steps">
-    <li>Lie flat on your back somewhere comfortable.</li>
-    <li>Place your phone on your belly, screen up, just below your ribs.</li>
-    <li>Breathe normally. The first reading takes about 30 seconds.</li>
-    <li>Then slow your breath — long, easy exhales — and watch the number drop.</li>
-  </ol>
-  Billow auto-detects which way your breathing moves the phone. The screen stays awake during a session. All sensing happens on your phone — nothing is recorded or sent anywhere.
+  Best position: lying flat on your back, phone just below the ribs. Billow auto-detects which way your breathing moves the phone, and the first reading takes about 30 seconds. Once it locks on, slow your breath — long, easy exhales — and watch the number drop. The screen stays awake during a session. All sensing happens on your phone — nothing is recorded or sent anywhere.
 </div>
 </div>
 
@@ -435,6 +462,7 @@ function startListening() {
   sessionStartT = Date.now();
   $('mainSection').style.display = 'block';
   $('enableBtn').style.display = 'none';
+  $('qsEnable').style.display = 'none';
   setStatus('Listening. Lie down, phone on belly, breathe normally.', 'success');
   window.addEventListener('devicemotion', onMotion);
   setInterval(updateAnalysis, 500);
@@ -773,6 +801,7 @@ function startSession() {
   resetBuffers();
   sessionBpmHistory = [];
   inSession = true;
+  $('quickStart').style.display = 'none';
   timerStopAt = sessionStartT + sessionDurationMinutes * 60 * 1000;
   $('startBtn').textContent = 'End session early';
   $('startBtn').classList.remove('secondary');
