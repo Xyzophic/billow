@@ -8,7 +8,8 @@ let audioCtx = null;
 export function unlockAudio() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // 'suspended' before unlock, 'interrupted' after an iOS phone call / Siri / lock
+    if (audioCtx.state !== 'running') audioCtx.resume();
   } catch (e) {
     audioCtx = null;
   }
@@ -17,6 +18,9 @@ export function unlockAudio() {
 // Soft two-note chime (E5 → A5), ~1s, quiet.
 export function chime() {
   if (!audioCtx) return;
+  if (audioCtx.state !== 'running') {
+    try { audioCtx.resume(); } catch (e) {}
+  }
   const t0 = audioCtx.currentTime;
   for (const [freq, dt] of [[659.25, 0], [880, 0.35]]) {
     const osc = audioCtx.createOscillator();

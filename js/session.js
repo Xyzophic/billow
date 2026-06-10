@@ -62,7 +62,10 @@ export function end() {
   const start = startSlice.reduce((a, b) => a + b, 0) / startSlice.length;
   const endSlice = bpms.slice(-Math.min(5, bpms.length));
   const endAvg = endSlice.reduce((a, b) => a + b, 0) / endSlice.length;
-  const durationSec = bpmHistory[bpmHistory.length - 1].t - bpmHistory[0].t;
+  // True session length — the engine clock restarts at session start, so its
+  // elapsed time is the session span (the bpm timeline starts later, once the
+  // signal locks on, and would underreport).
+  const durationSec = engine.elapsedSec();
 
   return { avg, start, end: endAvg, lowest, durationSec, points: bpmHistory };
 }

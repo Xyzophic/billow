@@ -119,6 +119,7 @@ $('enableBtn').addEventListener('click', async () => {
 });
 
 function startListening() {
+  if (engine.isListening()) return; // double-tap on enable while the permission prompt is open
   engine.restartClock();
   $('mainSection').style.display = 'block';
   $('enableBtn').style.display = 'none';
@@ -290,11 +291,14 @@ function drawSoftChart(c, xs, vals, dots) {
   }
 }
 
-DARK_MQ.addEventListener('change', () => {
+const onSchemeChange = () => {
   // the live trace redraws on its own tick; refresh whichever chart view is open
   if ($('summaryView').style.display === 'block' && lastSummary) renderSummary(lastSummary);
   if ($('historyView').style.display === 'block') renderHistory();
-});
+};
+// MediaQueryList.addEventListener is Safari 14+; fall back rather than crash on older iOS
+if (typeof DARK_MQ.addEventListener === 'function') DARK_MQ.addEventListener('change', onSchemeChange);
+else if (typeof DARK_MQ.addListener === 'function') DARK_MQ.addListener(onSchemeChange);
 
 function drawSummaryChart(points) {
   const vals = points.map(p => settings.units === 'sec' ? 60 / p.bpm : p.bpm);
@@ -446,7 +450,11 @@ function showHistory(from) {
 }
 
 $('csvBtn').addEventListener('click', () => exportHistoryCsv(loadHistory()));
-$('shareBtn').addEventListener('click', () => { if (lastSummary) shareSummaryImage(lastSummary, settings.units); });
+$('shareBtn').addEventListener('click', async () => {
+  if (!lastSummary) return;
+  const outcome = await shareSummaryImage(lastSummary, settings.units);
+  if (outcome === 'failed') setStatus('Could not create the share image on this device. Try again, or screenshot the summary instead.', 'error');
+});
 $('historyBtn').addEventListener('click', () => showHistory('main'));
 $('historyBtn2').addEventListener('click', () => showHistory('summary'));
 $('historyBackBtn').addEventListener('click', () => {

@@ -1,5 +1,5 @@
 // Billow service worker — app-shell cache so the app loads instantly and works offline.
-const CACHE = 'billow-v8';
+const CACHE = 'billow-v9';
 const SHELL = [
   './',
   './index.html',

@@ -19,12 +19,19 @@ export function init(callbacks) {
 }
 
 export function start(bpm, vibe) {
-  targetBpm = bpm;
   vibrate = vibe;
   if (rafId === null) {
+    targetBpm = bpm;
     t0 = performance.now(); // anchor so every run begins on an inhale
     lastKind = null;
     rafId = requestAnimationFrame(frame);
+  } else if (bpm !== targetBpm) {
+    // re-anchor so the current phase carries over — no jump when the rate changes mid-session
+    const now = performance.now();
+    const oldCycle = 60000 / targetBpm;
+    const phase = (((now - t0) % oldCycle) + oldCycle) % oldCycle / oldCycle;
+    targetBpm = bpm;
+    t0 = now - phase * (60000 / bpm);
   }
 }
 

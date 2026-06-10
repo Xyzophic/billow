@@ -34,6 +34,7 @@ export function exportHistoryCsv(history) {
 
 // Renders the session card to a canvas and opens the share sheet where
 // available (iOS/Android), otherwise downloads the PNG.
+// Returns 'shared' | 'cancelled' | 'downloaded' | 'failed' so the UI can report.
 export async function shareSummaryImage(summary, units) {
   const W = 1000, H = 1100;
   const c = document.createElement('canvas');
@@ -117,15 +118,16 @@ export async function shareSummaryImage(summary, units) {
   x.fillText('xyzophic.github.io/billow', W / 2, 1045);
 
   const blob = await new Promise(resolve => c.toBlob(resolve, 'image/png'));
-  if (!blob) return;
+  if (!blob) return 'failed'; // Safari can yield null under memory pressure
   const file = new File([blob], 'billow-session.png', { type: 'image/png' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
-      return;
+      return 'shared';
     } catch (e) {
-      if (e.name === 'AbortError') return; // user closed the share sheet
+      if (e.name === 'AbortError') return 'cancelled'; // user closed the share sheet
     }
   }
   downloadBlob(blob, 'billow-session.png');
+  return 'downloaded';
 }
