@@ -1,6 +1,6 @@
 # Billow
 
-**Put your phone on your belly and watch your breath.**
+**Put your phone on your belly and watch your breath. **
 
 Billow is a belly-breathing (diaphragmatic breathing) tracker that runs entirely in your phone's browser. Lie down, rest your phone on your belly, and it uses the motion sensors to detect each breath and show your live breaths-per-minute. Slow your breath and watch the number drop.
 
