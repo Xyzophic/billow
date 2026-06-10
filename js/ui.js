@@ -10,10 +10,10 @@ import { settings, saveSettings, loadHistory, addToHistory } from './store.js';
 const $ = id => document.getElementById(id);
 
 // Canvas colors (canvas can't read CSS vars; keep in sync with :root tokens)
-const ACCENT = '#6f64b8';
-const WAVE_FILL = '#211b41';
-const PEAK_DOT = '#a89ee0';
-const FAINT = '#544a85';
+const ACCENT = '#20808d';
+const WAVE_FILL = '#20808d1a';
+const PEAK_DOT = '#176975';
+const FAINT = '#b8b5ac';
 
 let wakeLock = null;
 let lastSummary = null;
