@@ -72,7 +72,13 @@
     </div>
   </div>
 
-  <canvas id="trace"></canvas>
+  <div class="trace-wrap" id="traceWrap">
+    <canvas id="trace"></canvas>
+    <div class="trace-overlay" id="traceOverlay" aria-hidden="true">
+      <span class="trace-overlay-text">settling…</span>
+      <span class="trace-overlay-sub">hold still a moment</span>
+    </div>
+  </div>
 
   <div class="meta-line" id="metaLine">signal: — · 0 breaths · 0:00</div>
 

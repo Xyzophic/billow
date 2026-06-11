@@ -9,6 +9,15 @@ const MIN_PEAK_DISTANCE_SEC = 2.5;
 const BUFFER_SECONDS = 70;
 const MOTION_GAP_RESET_MS = 3000; // backgrounded tab → stale buffers, start clean
 
+// Jolt detection (display only — does not touch peak/bpm logic). A deliberate
+// shift produces a large per-sample change in raw acceleration; the DC tracker
+// then needs a couple of seconds to re-center, during which the wave is messy.
+// We flag that window so the UI can freeze the trace instead of showing the mess.
+const JOLT_SETTLE_MS = 2500;     // ~matches the slow EMA's re-settle time
+const JOLT_FLOOR = 0.6;          // m/s² of per-sample jerk that always counts as a jolt
+const JOLT_RATIO = 4;            // …or this many× the recent typical jerk
+const JERK_EMA_ALPHA = 0.02;     // slow baseline so spikes don't inflate the threshold
+
 // EMA bandpass coefficients (~0.05–0.5 Hz at 60 Hz)
 const ALPHA_SLOW = 2 * Math.PI * 0.05 / SAMPLE_RATE_NOMINAL;
 const ALPHA_FAST = 2 * Math.PI * 0.5 / SAMPLE_RATE_NOMINAL;
@@ -21,6 +30,12 @@ let lastMotionWallT = null;
 let activeChannel = null;
 let activePeaks = [];
 let timestamps = [];
+
+// Jolt-detection state (see tunables above).
+let noisyUntilT = 0;
+let prevAccel = null;
+let jerkEma = 0;
+let jerkInited = false;
 
 const channels = {
   ag_x: makeChan(),
@@ -54,6 +69,9 @@ export function clearSignal() {
     channels[k].inited = false;
   }
   activePeaks = [];
+  noisyUntilT = 0;
+  prevAccel = null;
+  jerkInited = false;
 }
 
 export function handleMotion(e) {
@@ -69,10 +87,20 @@ export function handleMotion(e) {
   const r = e.rotationRate || {};
   const t = nowWall - clockStartT;
 
+  // Flag a jolt: a per-sample jerk far above the calm breathing baseline.
+  const ax = ag.x ?? 0, ay = ag.y ?? 0, az = ag.z ?? 0;
+  if (prevAccel) {
+    const jerk = Math.abs(ax - prevAccel.x) + Math.abs(ay - prevAccel.y) + Math.abs(az - prevAccel.z);
+    if (!jerkInited) { jerkEma = jerk; jerkInited = true; }
+    if (jerk > Math.max(JOLT_FLOOR, jerkEma * JOLT_RATIO)) noisyUntilT = t + JOLT_SETTLE_MS;
+    jerkEma += JERK_EMA_ALPHA * (jerk - jerkEma);
+  }
+  prevAccel = { x: ax, y: ay, z: az };
+
   timestamps.push(t);
-  pushSample('ag_x', ag.x ?? 0);
-  pushSample('ag_y', ag.y ?? 0);
-  pushSample('ag_z', ag.z ?? 0);
+  pushSample('ag_x', ax);
+  pushSample('ag_y', ay);
+  pushSample('ag_z', az);
   pushSample('rot_beta', r.beta ?? 0);
 
   // Trim to last BUFFER_SECONDS
@@ -154,7 +182,7 @@ export function analyze() {
   if (timestamps.length < 30) {
     return {
       ready: false, bpm: null, statusText: 'acquiring signal…',
-      axisLabel: '—', recentCount: 0, orbNorm: 0,
+      axisLabel: '—', recentCount: 0, orbNorm: 0, noisy: false,
       trace: { timestamps: [], filt: [], peaks: [] },
     };
   }
@@ -195,6 +223,7 @@ export function analyze() {
     axisLabel: AXIS_LABELS[activeChannel] || activeChannel,
     recentCount: recentPeaks.length,
     orbNorm,
+    noisy: now < noisyUntilT,
     trace: { timestamps, filt, peaks: peakObjs },
   };
 }

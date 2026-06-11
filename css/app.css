@@ -195,12 +195,46 @@ button.danger {
 }
 @keyframes badge-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+.trace-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
 canvas#trace {
   width: 100%;
   height: 150px;
   background: transparent;
   display: block;
-  margin-bottom: 6px;
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
+/* During a jolt the canvas is frozen on its last calm frame; dim + soften it
+   and fade in the "settling…" overlay so the recovery wobble stays hidden. */
+.trace-wrap.noisy canvas#trace {
+  opacity: 0.28;
+  filter: blur(1px);
+}
+.trace-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.trace-wrap.noisy .trace-overlay { opacity: 1; }
+.trace-overlay-text {
+  font-family: var(--serif);
+  font-size: 15px;
+  color: var(--accent-deep);
+  letter-spacing: 0.04em;
+}
+.trace-overlay-sub {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.14em;
 }
 .meta-line {
   text-align: center;

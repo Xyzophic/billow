@@ -19,6 +19,13 @@ const canvasColors = () => DARK_MQ.matches ? CANVAS_DARK : CANVAS_LIGHT;
 let wakeLock = null;
 let lastSummary = null;
 
+// Live-trace y-axis easing. The raw min/max of the visible window would zoom
+// out instantly on a movement spike, squashing the breathing wave to a flat
+// line. Easing the bounds (and clamping the drawn line to them) keeps small
+// movements from disrupting the picture; big jolts are handled by freezing.
+let easedMin = null, easedMax = null;
+const TRACE_RANGE_EASE = 0.15;
+
 // --- Breathing orb ---
 // All orb motion routes through setOrbScale() so the upcoming pacer feature can
 // drive the orb from a target rhythm instead of the measured signal.
@@ -157,6 +164,12 @@ function updateAnalysis() {
   metaAxis = a.axisLabel;
   metaBreaths = a.recentCount;
   updateMetaLine();
+  if (!a.trace.filt.length) { easedMin = easedMax = null; } // fresh signal → re-ease
+
+  // During a jolt, freeze the last calm frame and cover it with a "settling…"
+  // overlay; hold the orb steady too, rather than show the recovery wobble.
+  $('traceWrap').classList.toggle('noisy', a.noisy);
+  if (a.noisy) return;
 
   // Drive the orb from the latest filtered sample — unless the pacer owns it.
   if (!pacer.isActive()) {
@@ -187,13 +200,25 @@ function drawTrace({ timestamps, filt, peaks }) {
 
   let min = Infinity, max = -Infinity;
   for (const v of fSlice) { if (v < min) min = v; if (v > max) max = v; }
+  // Ease the bounds toward the instantaneous range so a transient spike nudges
+  // the scale gently instead of snapping the wave flat.
+  if (easedMin === null) { easedMin = min; easedMax = max; }
+  else {
+    easedMin += (min - easedMin) * TRACE_RANGE_EASE;
+    easedMax += (max - easedMax) * TRACE_RANGE_EASE;
+  }
+  min = easedMin; max = easedMax;
   const range = (max - min) || 1;
   const pad = range * 0.15;
 
   const tStart = tSlice[0];
   const tSpan = (tSlice[tSlice.length - 1] - tStart) || 1;
   const xOf = t => ((t - tStart) / tSpan) * w;
-  const yOf = v => h - ((v - min + pad) / (range + 2 * pad)) * h;
+  // Clamp into the canvas so a spike beyond the eased range can't shoot off-frame.
+  const yOf = v => {
+    const y = h - ((v - min + pad) / (range + 2 * pad)) * h;
+    return y < 0 ? 0 : y > h ? h : y;
+  };
 
   const col = canvasColors();
   // soft area fill under the curve
